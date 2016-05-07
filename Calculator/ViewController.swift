@@ -83,6 +83,7 @@ class ViewController: UIViewController {
         
     }
     
+    //History description field
     func operationsAndOperand(history: String)
     {
         operationAndOperandHistory.text = operationAndOperandHistory.text! + history
