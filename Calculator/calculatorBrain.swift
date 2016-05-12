@@ -1,3 +1,4 @@
+
 //
 //  calculatorBrain.swift
 //  Calculator
@@ -8,15 +9,38 @@
 
 import Foundation
 
-class calculatorBrain {
-    
+
+class CalculatorBrain {
     private var accumulator = 0.0
-    private var internalProgram = [AnyObject]()
     
     func setOperand(operand: Double) {
-        
         accumulator = operand
-        internalProgram.append(operand)
+        descriptionAccumulator = String(format:"%g", operand)
+    }
+    
+    private var descriptionAccumulator = "0" {
+        didSet {
+            if pending == nil {
+                currentPrecedence = Int.max
+            }
+        }
+    }
+    
+    var description: String {
+        get {
+            if pending == nil {
+                return descriptionAccumulator
+            } else {
+                return pending!.descriptionFunction(pending!.descriptionOperand,
+                                                    pending!.descriptionOperand != descriptionAccumulator ? descriptionAccumulator : "")
+            }
+        }
+    }
+    
+    var isPartialResult: Bool {
+        get {
+            return pending != nil
+        }
     }
     
     func setOperand(variableName: String) {
@@ -24,125 +48,85 @@ class calculatorBrain {
         variableValues[variableName] = accumulator
     }
     
+    var variableValues = [String: Double]()
+
     
-    var operations: Dictionary<String, Operation> =  [
-        
+    private var operations: Dictionary<String,Operation> = [
         "π" : Operation.Constant(M_PI),
         "e" : Operation.Constant(M_E),
-        "√" : Operation.UnaryOperation(sqrt),
-        "cos" : Operation.UnaryOperation(cos),
-        "sin": Operation.UnaryOperation(sin),
-        "tan":Operation.UnaryOperation(tan),
-        "| x |":Operation.UnaryOperation({abs($0)}),
-        "±":Operation.UnaryOperation({ -$0}),
-        "×": Operation.BinaryOperation({$0 * $1}),
-        "÷": Operation.BinaryOperation({$0 / $1}),
-        "+": Operation.BinaryOperation({$0 + $1}),
-        "-": Operation.BinaryOperation({$0 - $1}),
-        "=": Operation.Equals,
+        "±" : Operation.UnaryOperation({ -$0 }, { "-(" + $0 + ")"}),
+        "√" : Operation.UnaryOperation(sqrt, { "√(" + $0 + ")"}),
+        "x²" : Operation.UnaryOperation({ pow($0, 2) }, { "(" + $0 + ")²"}),
+        "x³" : Operation.UnaryOperation({ pow($0, 3) }, { "(" + $0 + ")³"}),
+        "sin" : Operation.UnaryOperation(sin, { "sin(" + $0 + ")"}),
+        "cos" : Operation.UnaryOperation(cos, { "cos(" + $0 + ")"}),
+        "tan" : Operation.UnaryOperation(tan, { "tan(" + $0 + ")"}),
+        "10ˣ" : Operation.UnaryOperation({ pow(10, $0) }, { "10^(" + $0 + ")"}),
+        "×" : Operation.BinaryOperation(*, { $0 + " × " + $1 }, 1),
+        "÷" : Operation.BinaryOperation(/, { $0 + " ÷ " + $1 }, 1),
+        "+" : Operation.BinaryOperation(+, { $0 + " + " + $1 }, 0),
+        "-" : Operation.BinaryOperation(-, { $0 + " - " + $1 }, 0),
+        "xʸ" : Operation.BinaryOperation(pow, { $0 + " ^ " + $1 }, 2),
         "M": Operation.Variable("M"),
-        "AC":Operation.Constant(0)
-    
+        "=" : Operation.Equals
     ]
     
-    var variableValues = [String: Double]()
-    
-    enum Operation {
-        
+    private enum Operation {
         case Constant(Double)
-        case UnaryOperation ((Double) -> Double)
-        case BinaryOperation ((Double, Double) -> Double)
+        case UnaryOperation((Double) -> Double, (String) -> String)
+        case BinaryOperation((Double, Double) -> Double, (String, String) -> String, Int)
         case Equals
         case Variable(String)
-    }
-    
-    func performOperation(symbol: String){
-        
-        internalProgram.append(symbol)
-        
-        if let operation = operations[symbol]
-        {
-            switch operation {
-                
-            case .Constant (let value): accumulator = value
-                print("This is value \(value) and d this is accumlator \(accumulator)")
-                //Try priting function
-            case .UnaryOperation(let function):
-                accumulator = function(accumulator)
-                print("UnaryOperation")
-            case .BinaryOperation (let function):
-                executePendingBinaryOperation()
-                pending = PendingBinaryOperationInfo(binaryFunction: function, firstOperand: accumulator)
-                print("Binary Operation")
-            case .Variable (let thisVariable): variableValues[thisVariable] = accumulator
-                print("Variable is called. thisVariable is \(thisVariable) accumlator is \(accumulator)")
-            print("the amount of items in the dictonary \(variableValues.count) ")
-            case .Equals: executePendingBinaryOperation()
-                print("Equals")
-            
-            
-            
-            }
-        }
-        
-    }
-    
-   
-    
-    private func executePendingBinaryOperation()
-    {
-        if pending != nil {
-            
-            accumulator = pending!.binaryFunction(pending!.firstOperand, accumulator)
-            
-            pending = nil
-        }
 
     }
     
-    typealias PropertyList = AnyObject
+    private var currentPrecedence = Int.max
     
-    var program: PropertyList {
-        
-        get {
-            return internalProgram
-        }
-        
-        set {
-            accumulator = 0.0
-            pending = nil
-            internalProgram.removeAll()
-            
-            if let arrayOfOps = newValue as? [AnyObject] {
-                
-                for op in arrayOfOps {
-                    
-                    if let operand = op as? Double {
-                        
-                        setOperand(operand)
-                    }
-                    else if let operation = op as? String {
-                        
-                        performOperation(operation)
-                    }
+    func performOperation(symbol: String) {
+        if let operation = operations[symbol] {
+            switch operation {
+            case .Constant(let value):
+                accumulator = value
+                descriptionAccumulator = symbol
+            case .UnaryOperation(let function, let descriptionFunction):
+                accumulator = function(accumulator)
+                descriptionAccumulator = descriptionFunction(descriptionAccumulator)
+            case .BinaryOperation(let function, let descriptionFunction, let precedence):
+                executePendingBinaryOperation()
+                if currentPrecedence < precedence {
+                    descriptionAccumulator = "(" + descriptionAccumulator + ")"
                 }
-            }
+                currentPrecedence = precedence
+                pending = PendingBinaryOperationInfo(binaryFunction: function, firstOperand: accumulator,
+                                                     descriptionFunction: descriptionFunction, descriptionOperand: descriptionAccumulator)
+            case .Equals:
+                executePendingBinaryOperation()
             
+            case .Variable (let thisVariable): variableValues[thisVariable] = accumulator
+
+            }
+        }
+    }
+    
+    private func executePendingBinaryOperation() {
+        if pending != nil {
+            accumulator = pending!.binaryFunction(pending!.firstOperand, accumulator)
+            descriptionAccumulator = pending!.descriptionFunction(pending!.descriptionOperand, descriptionAccumulator)
+            pending = nil
         }
     }
     
     private var pending: PendingBinaryOperationInfo?
     
-    struct PendingBinaryOperationInfo {
-        
+    private struct PendingBinaryOperationInfo {
         var binaryFunction: (Double, Double) -> Double
         var firstOperand: Double
+        var descriptionFunction: (String, String) -> String
+        var descriptionOperand: String
     }
     
     var result: Double {
-        
         get {
-            
             return accumulator
         }
     }

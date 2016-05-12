@@ -1,5 +1,5 @@
 //
-//  ViewController.swift
+//  V/Users/Derek/Developer/Calculator/Calculator/Base.lproj/Main.storyboardiewController.swift
 //  Calculator
 //
 //  Created by Derek Pacula on 4/19/16.
@@ -11,7 +11,9 @@ import UIKit
 class ViewController: UIViewController {
     
     @IBOutlet private var display: UILabel!
-    @IBOutlet var operationAndOperandHistory: UILabel!
+    @IBOutlet var history: UILabel!
+    
+    var  brain = CalculatorBrain()
     
     private var userIsInTheMiddleOfTyping = false
     
@@ -20,7 +22,6 @@ class ViewController: UIViewController {
     @IBAction private func touchDigit(sender: UIButton) {
         
         let digit = sender.currentTitle!
-        operationsAndOperand(digit)
         
         if digit == "." && display.text!.rangeOfString(".") != nil {
             return;
@@ -50,12 +51,12 @@ class ViewController: UIViewController {
         set {
             
             display.text = String(newValue)
+             history.text = brain.description + (brain.isPartialResult ? " …" : " =")
 
             
         }
     }
     
-    private var brain = calculatorBrain()
     
     //Function to perform mathetmatical operations on the calculator.
     @IBAction private func performOperation(sender: UIButton) {
@@ -68,56 +69,21 @@ class ViewController: UIViewController {
         if let mathematicalSymbol = sender.currentTitle
         {
             brain.performOperation(mathematicalSymbol)
-            operationsAndOperand(" " + mathematicalSymbol + " ")
-            
-            if mathematicalSymbol == "="
-            {
-                operationsAndOperand(String(brain.result) + " ")
-            }
-            
-    
 
-            
+    
         }
         displayValue = brain.result
-        
     }
     
-    //History description field
-    func operationsAndOperand(history: String)
-    {
-        operationAndOperandHistory.text = operationAndOperandHistory.text! + history
-    }
-    
-    var savedProgram: calculatorBrain.PropertyList?
-    @IBAction func save() {
-        
-        savedProgram = brain.program
-    }
-    
-    
-    @IBAction func restore() {
-        
-        if savedProgram != nil {
-            
-            brain.program = savedProgram!
-            displayValue = brain.result
-        }
-    }
+
     @IBAction func clearCalculatorDisplay(sender: UIButton) {
         
         display.text = String(0)
         userIsInTheMiddleOfTyping = false
         brain.setOperand(0)
-        operationAndOperandHistory.text = String(" ")
+        history.text = String(" ")
     }
     
-    @IBAction func testVariables() {
-        
-        print("the amount of items in the dictonary \(brain.variableValues.count) ")
-        display.text = String(brain.variableValues.count)
-
-    }
 
 }
 
